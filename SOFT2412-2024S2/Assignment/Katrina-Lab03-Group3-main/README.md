@@ -1,0 +1,7 @@
+To start the program, execute 'gradle clean build' and then 'gradle run'. On startup, you will be presented with a few options. You can create a basic user account if you'd like, or login with the default admin account, which has the username 'admin_1' and the password strongPassword. From there, you'll be prompted with a number of options. If you're a normal user, you'll be allowed to convert between two currencies, display a table of popular currenceis and their exchange rates, and print the summarry of the conversion rate history between two currencies. If you're an admin, you'll be allowed to do all of the above alongside having options to update the list of popular currencies, changing the exchange rate between two currencies and adding a new currency. To run each command, simply enter the number next to the command and the program will prompt you on the required details
+
+To create a new admin user, you must manually add a text file in src/Database/AdminUsers. The name of the file should be the username, and the first and only line in the file should be the password.
+
+The planning folder was used to lay out what our program needs, and an initial UML diagram which was used to give us some idea of how to proceed with the project. Since we didn't follow the UML exactly, there's another UML that correctly matches our actual project
+
+To test the project, use the 'gradle clean test' commmand to run all the tests in src/test/java. If you'd like to generate a jacoco test report to see testcase coverage, use the command 'gradle test jacocoTestReport'.

@@ -1,0 +1,99 @@
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap'); /* Header font */
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400&display=swap'); /* Body text font */
+
+/* Background*/
+.reveal {
+    background: linear-gradient(-45deg, #1C1C1C, #0A3D5D, #005647, #1C1C1C); 
+    background-size: 400% 400%;
+    animation: gradientShift 10s ease infinite; 
+    color: #F0F0F0; 
+    font-family: 'Lora', serif; 
+}
+
+@keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.reveal h1 {
+    font-family: 'Playfair Display', serif; 
+    color: #E0B400; 
+    text-shadow: 1px 1px 5px rgba(224, 180, 0, 0.6); 
+    font-size: 2em; /* Reduced from 2.5em */
+    margin-top: -10px; /* Adjusted to reduce space between heading and content */
+}
+
+.reveal .slide h1 {
+    font-size: 1.7em; /* Reduced from 2em */
+    margin-top: -10px; /* Adjusted */
+}
+
+.reveal .slide h2,
+.reveal .slide h3 {
+    font-family: 'Playfair Display', serif; 
+    color: #E0B400; 
+    text-shadow: 1px 1px 5px rgba(224, 180, 0, 0.6);
+    font-size: 1.3em; /* Reduced from 1.5em */
+    margin-top: -5px; /* Adjusted */
+}
+
+
+/* Highlight  */
+.reveal .highlight {
+    color: #E0B400; 
+    font-weight: bold;
+    text-shadow: 0px 0px 7px rgba(224, 180, 0, 0.7); 
+}
+
+/* Background */
+.reveal .slide::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px), 
+                      linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.4;
+    z-index: -1;
+}
+
+/* Slide padding and animations */
+.reveal .slide {
+    padding: 30px;
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
+}
+
+.reveal .slide:target {
+    opacity: 1;
+}
+
+/* Font size for slide content */
+.reveal .slide p {
+   font-size: 0.8em;
+    margin: 10px 0;
+}
+
+.reveal .slide li {
+    font-size: 0.8em;
+}
+
+/* Style for numerical metrics */
+.reveal .metric {
+    color: #F0E68C; 
+    font-weight: bold;
+    font-size: 0.8em; 
+    font-family: 'Lora', serif; 
+}
+
+img {
+    max-width: 100%; /* Ensure the image doesn't overflow the container */
+    height: auto; /* Maintain aspect ratio */
+    display: block;
+    margin: 20px auto; /* Center images with some margin */
+}

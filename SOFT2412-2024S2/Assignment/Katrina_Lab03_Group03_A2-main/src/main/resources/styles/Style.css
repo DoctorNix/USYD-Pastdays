@@ -1,0 +1,27 @@
+.text-area {
+    -fx-text-fill: black;
+}
+
+.centeredTextArea .content .text {
+    -fx-text-alignment: left;
+}
+
+
+.root {
+    -fx-font-family: Garamond;
+    -fx-text-fill: black;
+}
+
+.bigheader{
+
+    -fx-font-size: 3em;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+
+}
+
+.subheader{
+    -fx-font-size: 1.5em;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+}

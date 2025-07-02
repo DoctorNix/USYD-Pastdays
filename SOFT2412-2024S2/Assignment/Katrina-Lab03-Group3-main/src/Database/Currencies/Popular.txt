@@ -1,0 +1,4 @@
+AUD
+EUR
+CNY
+USD

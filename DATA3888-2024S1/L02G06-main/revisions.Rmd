@@ -1,0 +1,329 @@
+---
+title: "revisions"
+author: "Yizhen Pan"
+date: "2024-10-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Here is for portguese set:
+
+```{r port}
+#  Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(broom)
+library(MASS)
+
+# ------------------------------
+# Part 1: Portuguese Dataset
+# ------------------------------
+
+# Load the dataset and filter out rows with G3 = 0
+port_data <- read.csv("student-por.csv", sep = ";") %>%
+  filter(G3 != 0)
+
+# Convert character columns to factors
+factor_cols <- sapply(port_data, is.character)
+port_data[factor_cols] <- lapply(port_data[factor_cols], factor)
+
+# Train-test split (70% training, 30% testing)
+set.seed(42)  # For reproducibility
+train_index <- sample(1:nrow(port_data), size = floor(0.7 * nrow(port_data)))
+train_port <- port_data[train_index, ]
+test_port <- port_data[-train_index, ]
+
+# Fit Models
+lin_mod <- lm(G3 ~ ., data = train_port)
+log_mod <- lm(log(G3) ~ ., data = train_port)
+backward_mod <- stepAIC(lin_mod, direction = "backward", trace = FALSE)
+stepwise_mod <- stepAIC(lin_mod, direction = "both", trace = FALSE)
+
+# --- RMSE Calculation Function ---
+calculate_rmse <- function(true_values, predicted_values) {
+  sqrt(mean((true_values - predicted_values)^2))
+}
+
+# In-Sample RMSE
+rmse_train_linear <- calculate_rmse(train_port$G3, lin_mod$fitted.values)
+rmse_train_log <- calculate_rmse(train_port$G3, exp(log_mod$fitted.values))
+rmse_train_backward <- calculate_rmse(train_port$G3, backward_mod$fitted.values)
+rmse_train_stepwise <- calculate_rmse(train_port$G3, stepwise_mod$fitted.values)
+
+# Out-of-Sample RMSE
+lin_pred_test <- predict(lin_mod, test_port)
+log_pred_test <- exp(predict(log_mod, test_port))
+backward_pred_test <- predict(backward_mod, test_port)
+stepwise_pred_test <- predict(stepwise_mod, test_port)
+
+rmse_test_linear <- calculate_rmse(test_port$G3, lin_pred_test)
+rmse_test_log <- calculate_rmse(test_port$G3, log_pred_test)
+rmse_test_backward <- calculate_rmse(test_port$G3, backward_pred_test)
+rmse_test_stepwise <- calculate_rmse(test_port$G3, stepwise_pred_test)
+
+# --- R² and Adjusted R² Calculation Functions ---
+calculate_r2 <- function(true_values, predicted_values) {
+  ss_total <- sum((true_values - mean(true_values))^2)
+  ss_residual <- sum((true_values - predicted_values)^2)
+  1 - (ss_residual / ss_total)
+}
+
+calculate_adj_r2 <- function(r2, n, k) {
+  1 - (1 - r2) * ((n - 1) / (n - k - 1))
+}
+
+# In-Sample R² and Adjusted R²
+n_train <- nrow(train_port)
+k_linear <- length(lin_mod$coefficients) - 1
+k_log <- length(log_mod$coefficients) - 1
+k_backward <- length(backward_mod$coefficients) - 1
+k_stepwise <- length(stepwise_mod$coefficients) - 1
+
+r2_train_linear <- calculate_r2(train_port$G3, lin_mod$fitted.values)
+adj_r2_train_linear <- calculate_adj_r2(r2_train_linear, n_train, k_linear)
+
+r2_train_log <- calculate_r2(train_port$G3, exp(log_mod$fitted.values))
+adj_r2_train_log <- calculate_adj_r2(r2_train_log, n_train, k_log)
+
+r2_train_backward <- calculate_r2(train_port$G3, backward_mod$fitted.values)
+adj_r2_train_backward <- calculate_adj_r2(r2_train_backward, n_train, k_backward)
+
+r2_train_stepwise <- calculate_r2(train_port$G3, stepwise_mod$fitted.values)
+adj_r2_train_stepwise <- calculate_adj_r2(r2_train_stepwise, n_train, k_stepwise)
+
+# Out-of-Sample R²
+r2_test_linear <- calculate_r2(test_port$G3, lin_pred_test)
+r2_test_log <- calculate_r2(test_port$G3, log_pred_test)
+r2_test_backward <- calculate_r2(test_port$G3, backward_pred_test)
+r2_test_stepwise <- calculate_r2(test_port$G3, stepwise_pred_test)
+
+# --- Display Results ---
+results <- data.frame(
+  Model = c("Linear", "Log-Transformed", "Backward", "Stepwise"),
+  RMSE_Train = c(rmse_train_linear, rmse_train_log, rmse_train_backward, rmse_train_stepwise),
+  R2_Train = c(r2_train_linear, r2_train_log, r2_train_backward, r2_train_stepwise),
+  Adj_R2_Train = c(adj_r2_train_linear, adj_r2_train_log, adj_r2_train_backward, adj_r2_train_stepwise),
+  RMSE_Test = c(rmse_test_linear, rmse_test_log, rmse_test_backward, rmse_test_stepwise),
+  R2_Test = c(r2_test_linear, r2_test_log, r2_test_backward, r2_test_stepwise)
+)
+
+print(results)
+
+# --- Extract Top Predictors by Absolute Coefficient ---
+get_top_predictors <- function(model, model_name) {
+  tidy(model) %>%
+    mutate(AbsCoef = abs(estimate)) %>%
+    filter(term != "(Intercept)") %>%
+    arrange(desc(AbsCoef)) %>%
+    slice(1:5) %>%
+    mutate(Model = model_name)
+}
+
+# Get top predictors for each model
+lin_top <- get_top_predictors(lin_mod, "Linear Model")
+log_top <- get_top_predictors(log_mod, "Log-Transformed Model")
+backward_top <- get_top_predictors(backward_mod, "Backward Model")
+stepwise_top <- get_top_predictors(stepwise_mod, "Stepwise Model")
+
+# Combine all predictors into one data frame
+all_predictors <- bind_rows(lin_top, log_top, backward_top, stepwise_top)
+
+# Plot the top predictors
+ggplot(all_predictors, aes(x = reorder(term, AbsCoef), y = AbsCoef, fill = Model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  labs(title = "Top Predictors Across Models for Portuguese", x = "Predictor", y = "Absolute Coefficient") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# --- Generate Model Equations ---
+# Function to generate the model equation as a string
+get_model_equation <- function(model, model_name) {
+  coefs <- coef(model)  # Extract coefficients
+  terms <- names(coefs)  # Extract predictor names
+  
+  # Create equation string: y = intercept + a1*X1 + a2*X2 + ...
+  equation <- paste0("y = ")
+  for (i in seq_along(coefs)) {
+    coef_value <- round(coefs[i], 4)
+    term_name <- terms[i]
+    if (i == 1 && term_name == "(Intercept)") {
+      equation <- paste0(equation, coef_value)
+    } else {
+      sign <- ifelse(coef_value >= 0, " + ", " - ")
+      equation <- paste0(equation, sign, abs(coef_value), "*", term_name)
+    }
+  }
+  
+  data.frame(Model = model_name, Equation = equation)
+}
+
+# Get equations for each model
+equation_linear <- get_model_equation(lin_mod, "Linear Model")
+equation_log <- get_model_equation(log_mod, "Log-Transformed Model")
+equation_backward <- get_model_equation(backward_mod, "Backward Model")
+equation_stepwise <- get_model_equation(stepwise_mod, "Stepwise Model")
+
+# Combine all equations into one data frame
+all_equations <- bind_rows(equation_linear, equation_log, equation_backward, equation_stepwise)
+
+# Print the equations
+print(all_equations)
+
+# ------------------------------
+# Part 2: Math Dataset
+# ------------------------------
+
+# Load dataset and filter out rows with G3 = 0
+math_data <- read.csv("student-mat.csv", sep = ";") %>%
+  filter(G3 != 0)
+
+# Convert character columns to factors
+factor_cols <- sapply(math_data, is.character)
+math_data[factor_cols] <- lapply(math_data[factor_cols], factor)
+
+# Create design matrix for the entire dataset
+full_design_matrix <- model.matrix(~ . - G3, data = math_data)
+
+# Convert design matrix to data frame with valid names
+full_design_df <- as.data.frame(full_design_matrix)
+colnames(full_design_df) <- make.names(colnames(full_design_df))
+
+# Add the response variable to the data frame
+full_design_df$G3 <- math_data$G3
+
+set.seed(42)  # For reproducibility
+train_index <- sample(seq_len(nrow(full_design_df)), size = floor(0.7 * nrow(full_design_df)))
+train_data <- full_design_df[train_index, ]
+test_data <- full_design_df[-train_index, ]
+
+# Fit Initial Models
+lin_mod <- lm(G3 ~ . -1, data = train_data)
+log_mod <- lm(log(G3) ~ . -1, data = train_data)
+backward_mod <- stepAIC(lin_mod, direction = "backward", trace = FALSE)
+stepwise_mod <- stepAIC(lin_mod, direction = "both", trace = FALSE)
+
+get_top_predictors <- function(model, n_top) {
+  tidy(model) %>%
+    filter(term != "(Intercept)") %>%
+    mutate(AbsCoef = abs(estimate)) %>%
+    arrange(desc(AbsCoef)) %>%
+    slice(1:n_top) %>%
+    pull(term)
+}
+
+# Select Top 5 Predictors for Each Model
+top_linear <- get_top_predictors(lin_mod, 5)
+top_log <- get_top_predictors(log_mod, 5)
+top_backward <- get_top_predictors(backward_mod, 5)
+top_stepwise <- get_top_predictors(stepwise_mod, 5)
+
+fit_optimized_model <- function(top_predictors, data, response_var = "G3") {
+  predictors_formula <- paste(top_predictors, collapse = " + ")
+  if (response_var == "log(G3)") {
+    data$log_G3 <- log(data$G3)
+    formula <- as.formula(paste("log_G3 ~", predictors_formula))
+  } else {
+    formula <- as.formula(paste(response_var, "~", predictors_formula))
+  }
+  lm(formula, data = data)
+}
+
+optimized_lin_mod <- fit_optimized_model(top_linear, train_data)
+optimized_log_mod <- fit_optimized_model(top_log, train_data, response_var = "log(G3)")
+optimized_backward_mod <- fit_optimized_model(top_backward, train_data)
+optimized_stepwise_mod <- fit_optimized_model(top_stepwise, train_data)
+
+# Prediction Helper Function
+safe_predict <- function(model, newdata, log_transform = FALSE) {
+  predictions <- predict(model, newdata)
+  if (log_transform) exp(predictions) else predictions
+}
+
+# Calculate RMSE, R², and Adjusted R²
+calculate_rmse <- function(true, predicted) sqrt(mean((true - predicted)^2))
+calculate_r2 <- function(true, predicted) {
+  ss_total <- sum((true - mean(true))^2)
+  ss_residual <- sum((true - predicted)^2)
+  1 - (ss_residual / ss_total)
+}
+calculate_adj_r2 <- function(r2, n, k) 1 - (1 - r2) * ((n - 1) / (n - k - 1))
+
+# Evaluate Models
+evaluate_model <- function(model, train_data, test_data, log_transform = FALSE, response_var = "G3") {
+  n_train <- nrow(train_data)
+  k <- length(model$coefficients)
+  
+  predictions_train <- predict(model, train_data)
+  predictions_test <- predict(model, test_data)
+  
+  if (log_transform) {
+    predictions_train <- exp(predictions_train)
+    predictions_test <- exp(predictions_test)
+    true_train <- train_data$G3
+    true_test <- test_data$G3
+  } else {
+    true_train <- train_data$G3
+    true_test <- test_data$G3
+  }
+  
+  data.frame(
+    RMSE_Train = calculate_rmse(true_train, predictions_train),
+    R2_Train = calculate_r2(true_train, predictions_train),
+    Adj_R2_Train = calculate_adj_r2(calculate_r2(true_train, predictions_train), n_train, k),
+    RMSE_Test = calculate_rmse(true_test, predictions_test),
+    R2_Test = calculate_r2(true_test, predictions_test)
+  )
+}
+
+# Evaluate Optimized Models
+models <- list(
+  "Optimized Linear" = optimized_lin_mod,
+  "Optimized Log-Transformed" = optimized_log_mod,
+  "Optimized Backward" = optimized_backward_mod,
+  "Optimized Stepwise" = optimized_stepwise_mod
+)
+
+# Collect and Display Results
+results <- do.call(rbind, lapply(names(models), function(name) {
+  cbind(Model = name, evaluate_model(
+    models[[name]], train_data, test_data,
+    log_transform = (name == "Optimized Log-Transformed"),
+    response_var = "G3"
+  ))
+}))
+
+print(results)
+
+# --- Plotting Top Predictors ---
+coefficients_df <- tidy(optimized_backward_mod)
+# Remove the intercept
+coefficients_df <- coefficients_df %>%
+  filter(term != "(Intercept)")
+
+# Calculate the absolute value of the coefficients
+coefficients_df <- coefficients_df %>%
+  mutate(abs_estimate = abs(estimate))
+
+# Select the top N predictors (e.g., top 5)
+top_n <- 5
+top_predictors_df <- coefficients_df %>%
+  arrange(desc(abs_estimate)) %>%
+  slice(1:top_n)
+
+# Plot the top predictors
+ggplot(top_predictors_df, aes(x = reorder(term, abs_estimate), y = estimate, fill = estimate > 0)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = paste("Top", top_n, "Predictors in Optimized Backward Model"),
+    x = "Predictor",
+    y = "Coefficient Estimate"
+  ) +
+  scale_fill_manual(values = c("TRUE" = "steelblue", "FALSE" = "firebrick"),
+                    guide = FALSE) +
+  theme_minimal()
+```

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Caesar's Cypher transport</title>
+</head>
+<body>
+    <h1>Caesar's Cypher</h1>
+    <p>this webpage is used for Caesar's code decryption and encryption</p>
+    <h2>enter the message you want to iterate</h2>
+    <input type="text" id="message" placeholder="enter the message to encrypt or decrypt">
+
+    <h2>enter the value you want to rot</h2>
+    <p>the encryption normally goes to left rot</p>
+    <input type="number" oninput="if(value>25)value=25;if(value<1)value=1" id = "rot" placeholder="enter the number to rot" step="1">
+
+    <button onclick="encrypt()">encrypt</button>
+    <button onclick="decrypt()">decrypt</button>
+    <p id = "result"></p>
+    <script src="ceased.js"></script>
+
+</body>
+</html>

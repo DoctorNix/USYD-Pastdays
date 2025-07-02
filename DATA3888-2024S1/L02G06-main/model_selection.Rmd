@@ -1,0 +1,225 @@
+---
+title: "Final_Model"
+author: '520009998'
+date: "2024-10-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# In short, for prediction, it is better to use Log-transformed models to both math and port, stepwise is recommend for interpretability and efficiency.
+
+## Data imports
+
+```{r data imports}
+library("dplyr")
+library("ggplot2")
+library("caret")
+library("glmnet")
+library("knitr")
+# Load the data
+d1 <- read.table("student-mat.csv", sep=";", header=TRUE)  # Math dataset
+d2 <- read.table("student-por.csv", sep=";", header=TRUE)  # Portuguese dataset
+
+# Clean the data by filtering out rows where G3 is 0
+d1 <- d1 %>% filter(G3 != 0)
+d2 <- d2 %>% filter(G3 != 0)
+```
+
+```{r aic comparson, results='hide'}
+
+full_model_math <- lm(G3 ~ ., data = d1)
+full_model_port <- lm(G3 ~ ., data = d2)
+
+# based on the code of ppt.qmd
+backward_model_math <- step(full_model_math, direction = "backward")
+# based on the code of 'Hannah Report.qmd'
+bidirection_model_math <- step(full_model_math, direction = "both")
+
+# based on the code of ppt.qmd
+backward_model_port <- step(full_model_port, direction = "backward")
+# based on the code of 'Hannah Report.qmd'
+bidirection_model_port <- step(full_model_port, direction = "both")
+
+b_m_m <- summary(backward_model_math)
+bo_m_m <-summary(bidirection_model_math)
+b_m_p <- summary(backward_model_port)
+bo_m_p <- summary(bidirection_model_port)
+```
+
+```{r table for stepwise and backward comparison}
+table_for_stepwise <- data.frame(
+  Model = c("Backward_math", "Stepwise_math", "Backward_port", "Stepwise_port"),
+  Observations = c(nrow(d1), nrow(d1), nrow(d2), nrow(d2)),
+  Rsquare = c(b_m_m$r.squared, bo_m_m$r.squared, b_m_p$r.squared, bo_m_p$r.squared),
+  Adjusted_Rsquare = c(b_m_m$adj.r.squared, bo_m_m$adj.r.squared, b_m_p$adj.r.squared, bo_m_p$adj.r.squared),
+  AIC = c(AIC(backward_model_math), AIC(bidirection_model_math), AIC(backward_model_port), AIC(bidirection_model_port)),
+  Residual_SE = c(sqrt(sum(residuals(backward_model_math)^2) / df.residual(backward_model_math)),
+                  sqrt(sum(residuals(bidirection_model_math)^2) / df.residual(bidirection_model_math)),
+                  sqrt(sum(residuals(backward_model_port)^2) / df.residual(backward_model_port)),
+                  sqrt(sum(residuals(bidirection_model_port)^2) / df.residual(bidirection_model_port))),
+  F_statistic = c(
+    paste0(round(b_m_m$fstatistic[1], 2), " on ", b_m_m$fstatistic[2], " and ", b_m_m$fstatistic[3], " DF"),
+    paste0(round(bo_m_m$fstatistic[1], 2), " on ", bo_m_m$fstatistic[2], " and ", bo_m_m$fstatistic[3], " DF"),
+    paste0(round(b_m_p$fstatistic[1], 2), " on ", b_m_p$fstatistic[2], " and ", b_m_p$fstatistic[3], " DF"),
+    paste0(round(bo_m_p$fstatistic[1], 2), " on ", bo_m_p$fstatistic[2], " and ", bo_m_p$fstatistic[3], " DF")
+  )
+)
+table_for_stepwise
+```
+From the AIC, R square value, and Residual SE values, the backward and stepwise models gives the same result to both math and port.
+```{r cross_validation_compare_using_10_folds, results='hide'}
+# Cross-Validation Setup
+train_control <- trainControl(method = "cv", number = 10)  # 10-fold cross-validation
+
+# Perform CV for each model
+cv_backward_math <- train(G3 ~ ., data = d1, method = "lm", trControl = train_control)
+cv_stepwise_math <- train(G3 ~ ., data = d1, method = "lmStepAIC", trControl = train_control, direction = "both")
+
+cv_backward_port <- train(G3 ~ ., data = d2, method = "lm", trControl = train_control)
+cv_stepwise_port <- train(G3 ~ ., data = d2, method = "lmStepAIC", trControl = train_control, direction = "both")
+
+cv_m_b <- summary(cv_backward_math)
+cv_m_s <- summary(cv_stepwise_math)
+cv_p_b <- summary(cv_backward_port)
+cv_p_s <- summary(cv_stepwise_port)
+```
+
+```{r table for cross validation}
+cv_results <- data.frame(
+  Model = c("Backward_math", "Stepwise_math", "Backward_port", "Stepwise_port"),
+  RMSE = c(
+    mean(cv_backward_math$results$RMSE),
+    mean(cv_stepwise_math$results$RMSE),
+    mean(cv_backward_port$results$RMSE),
+    mean(cv_stepwise_port$results$RMSE)
+  ),
+  Rsquared = c(
+    mean(cv_backward_math$results$Rsquared),
+    mean(cv_stepwise_math$results$Rsquared),
+    mean(cv_backward_port$results$Rsquared),
+    mean(cv_stepwise_port$results$Rsquared)
+  ),
+  MAE = c(
+    mean(cv_backward_math$results$MAE),
+    mean(cv_stepwise_math$results$MAE),
+    mean(cv_backward_port$results$MAE),
+    mean(cv_stepwise_port$results$MAE)
+  )
+)
+
+cv_results
+```
+
+From the cross validation result.
+
+Math:
+The stepwise model provides slightly better performance, with a lower RMSE (0.8589 vs. 0.8664) and higher R² (0.9316 vs. 0.9289) compared to the backward model.
+MAE is also lower for the stepwise model, indicating better predictive accuracy.
+
+Port:
+The backward model offers a slight advantage with lower MAE (0.6768 vs. 0.6759), though the differences are minimal.
+The stepwise model's RMSE (0.9259 vs 0.9189) is higher, but both models yield comparable R² values.
+
+```{r linear comparison with cross validation, results='hide'}
+normal_model_math <- lm(G3 ~ ., data = d1)
+log_model_math <- lm(log(G3) ~ ., data = d1)
+
+normal_model_port <- lm(G3 ~ ., data = d2)
+log_model_port <- lm(log(G3) ~ ., data = d2)
+
+cv_normal_math <- train(G3 ~ ., data = d1, method = "lm", trControl = train_control)
+cv_log_math <- train(log(G3) ~ ., data = d1, method = "lm", trControl = train_control)
+
+cv_normal_port <- train(G3 ~ ., data = d2, method = "lm", trControl = train_control)
+cv_log_port <- train(log(G3) ~ ., data = d2, method = "lm", trControl = train_control)
+
+```
+
+```{r table for linear comparison}
+# Extract Model Metrics for Comparison
+comparison_results <- data.frame(
+  Dataset = c("Math", "Math", "Portuguese", "Portuguese"),
+  Model = c("Normal", "Log-Transformed", "Normal", "Log-Transformed"),
+  AIC = c(
+    AIC(normal_model_math), AIC(log_model_math),
+    AIC(normal_model_port), AIC(log_model_port)
+  ),
+  Rsquared = c(
+    summary(normal_model_math)$r.squared,
+    summary(log_model_math)$r.squared,
+    summary(normal_model_port)$r.squared,
+    summary(log_model_port)$r.squared
+  ),
+  Adjusted_Rsquared = c(
+    summary(normal_model_math)$adj.r.squared,
+    summary(log_model_math)$adj.r.squared,
+    summary(normal_model_port)$adj.r.squared,
+    summary(log_model_port)$adj.r.squared
+  ),
+  RMSE = c(
+    mean(cv_normal_math$results$RMSE), mean(cv_log_math$results$RMSE),
+    mean(cv_normal_port$results$RMSE), mean(cv_log_port$results$RMSE)
+  ),
+  MAE = c(
+    mean(cv_normal_math$results$MAE), mean(cv_log_math$results$MAE),
+    mean(cv_normal_port$results$MAE), mean(cv_log_port$results$MAE)
+  )
+)
+
+comparison_results
+```
+
+## Math Dataset Analysis
+Normal Model:
+
+Highest R-squared (0.9435) and adjusted R-squared, indicating it explains the most variance.
+However, the AIC is relatively high (909.08), suggesting it is not the most efficient model in terms of parsimony.
+
+Log-Transformed Model:
+
+Lowest AIC (-621.06), indicating the best fit with fewer parameters.
+However, the R-squared (0.9087) is lower than the normal model, suggesting it sacrifices variance explanation for predictive accuracy.
+Lowest RMSE (0.1025) and MAE (0.0781) make it the most accurate for predictions.
+Stepwise Model (Backward):
+
+Slightly lower R-squared than the normal model (0.9389) but achieves a lower AIC (868.79).
+
+## For the Port:
+Normal Model:
+
+Highest R-squared (0.8918) and adjusted R-squared, explaining the most variance.
+However, it has a high AIC (1729.74), indicating inefficiency.
+Log-Transformed Model:
+
+Lowest AIC (-839.13), indicating the best fit.
+However, it has a significantly lower R-squared (0.7713), making it less suitable for interpretability.
+It has the lowest RMSE (0.1060) and MAE (0.0669), which makes it highly suitable for predictive purposes.
+Stepwise Model (Backward):
+
+Slightly lower R-squared than the normal model (0.8882), but achieves a better AIC (1688.46).
+Balanced in terms of both variance explanation and parsimony.
+
+# Plot part for each model, in case you need
+
+```{r plot part for log linear}
+plot(log_model_math)
+plot(log_model_port)
+```
+
+```{r plot for normal linear}
+plot(normal_model_math)
+plot(normal_model_port)
+```
+
+```{r plot for stepwise compare}
+plot(bidirection_model_math)
+plot(bidirection_model_port)
+```
+
+```{r plot for backward compare}
+plot(backward_model_math)
+plot(backward_model_port)
+```

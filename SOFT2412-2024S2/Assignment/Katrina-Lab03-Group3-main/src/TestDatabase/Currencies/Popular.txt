@@ -1,0 +1,4 @@
+JPY
+EUR
+AUD
+USD

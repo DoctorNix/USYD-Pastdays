@@ -1,0 +1,642 @@
+---
+title: "Report"
+author: "Hannah Oo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+This report contains code made by Hannah including code for presentation, report, and also own model selection exploratory. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load-packages, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(visdat)
+library(dplyr)
+theme_set(theme_bw())
+```
+
+# Data Description
+
+Our data is Student Performance from UC Irvine Machine Learning Repository. We have 2 data sets but both have same 30 features with different entry values. The data is from two Portuguese secondary education schools collecting data via school reports and questionnaires.
+
+Data source URL: <https://archive.ics.uci.edu/dataset/320/student+performance>
+
+Each data set has G3 column which is the final grade we want to predict. One data set is Math final grade related and the other is Portuguese final grade related. There are no missing values in both data sets and there is strong correlation between G3, G1, and G2 because G1 and G2 are grades from period 1 and 2.
+
+There are more rows in Portuguese data set than Math data set. Math Data is 395 x 33 dimension and Portuguese Data is 649 x 33. 
+
+```{r}
+# Load data
+og.d1=read.table("student/student-mat.csv",sep=";",header=TRUE) # d1 is Math
+og.d2=read.table("student/student-por.csv",sep=";",header=TRUE) # d2 is Portuguese
+
+d1 <- og.d1 %>% filter(G3 != 0) # filter to select rows where G3 is not zero
+d2 <- og.d2 %>% filter(G3 != 0) # filter to select rows where G3 is not zero
+d2 <- og.d2 %>% filter(G3 != 1) # filter to select rows where G3 is not zero
+
+log.d1 <- d1 
+log.d1$G3 <- log(d1$G3)
+log.d2 <- d2 
+log.d2$G3 <- log(d2$G3)
+```
+Code for EDA for the report
+```{r}
+dataset_table <- data.frame(
+  Variable_Names = c("sex, schoolsup, famsup, paid, activities, nursery, higher, internet, romantic", "school, address, famsize, Pstatus, Mjob, Fjob, reason, guardian", "Medu, Fedu, traveltime, studytime, failures", "famrel, freetime, goout, Dalc, Walc, health","age, absences, G1, G2, G3"),
+  Type = c("Binary", "Nominal Category", "Ordinal Category", "Likert Scale", "Discrete Numerical"),
+  Class = c("Boolean", "Character", "Integer", "Integer", "Integer")
+)
+
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+
+# Load data
+og.d1=read.table("student/student-mat.csv",sep=";",header=TRUE) # d1 is Math
+og.d2=read.table("student/student-por.csv",sep=";",header=TRUE) # d2 is Portuguese
+
+my.og.d1 <- og.d1
+my.og.d2 <- og.d2
+my.og.d1$Subject = "Math"
+my.og.d2$Subject = "Portuguese"
+
+my.og.d1 <- my.og.d1 %>% select(Subject, G3)
+my.og.d2 <- my.og.d2 %>% select(Subject, G3)
+
+combined <- rbind(my.og.d1, my.og.d2)
+
+boxplot <- combined |> ggplot() + aes(x = G3) + 
+  geom_boxplot() +
+  facet_grid( . ~ Subject) +
+  labs(x = "G3")
+
+barplot <- combined |> ggplot() + 
+   geom_bar(aes(x = G3), fill = "skyblue") +
+   facet_grid( . ~ Subject) +
+  labs(y = "Students", x = NULL, title = "Distribution of G3 (final grade)")
+  
+
+barplot / boxplot
+```
+
+We have decided to filter the data sets to only look at rows where G3 is not 0. This is because G3 can be an integer between 0 and 20 and presumably, it is more likely that students are absent more than student try and get 0 on the test.
+
+
+##### Check Missing Data (This graph is not important)
+```{r}
+visdat::vis_miss(d1) + coord_flip() + theme(legend.position = "none")
+visdat::vis_miss(d2) + coord_flip() + theme(legend.position = "none")
+```
+
+Both data sets show that there are no missing values.
+
+
+##### Check Variable Distribution For Numerical Data
+
+Math Data Set
+```{r}
+d1 %>%
+  pivot_longer(cols = where(is.numeric)) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = "free") +
+  theme_minimal() +
+  labs(x = "Numerical Features", y = "Count", title = "Math Data Distribution of Each Numerical Feature")
+```
+Other than absences, Dalc, failures, health, Medu, traveltime, Walc variables, the rest of the variables are normally distributed. 
+
+Portuguese Dataset
+```{r}
+d2 %>%
+  pivot_longer(cols = where(is.numeric)) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = "free") +
+  theme_minimal() +
+  labs(x = "Numerical Features", y = "Count", title = "Portuguese Data Distribution of Each Numerical Feature")
+```
+Other than absences, Dalc, failures, health, Medu, traveltime, Walc variables, the rest of the variables are normally distributed. 
+
+Both Math and Portuguese Data sets are similarly distributed.
+
+
+##### Check Variable Relationship With G3 and transformed datasets
+
+log(Math) numerical
+```{r}
+log.d1 %>% 
+  select(G2, famrel, absences, Medu, goout, G1, failures, age, Dalc, traveltime, G3) %>% 
+  pivot_longer(-G3) %>%
+  ggplot(aes(x=value,y=G3))  + 
+  geom_jitter(width=0.1,height=1,alpha=0.2)+ 
+  geom_smooth(method= "lm", color = "red", se = FALSE)+
+  facet_wrap(~name,scales='free') + 
+  labs(x = "Independent Features", y = "Log G3", title = "Math Data Relationship with Each Numerical Feature")
+```
+For Math data set, we can see strong correlation between G1 and G3 and G2 and G3. There is also slight correlation between failures, age, Dalc, goout, Medu vs G3.
+
+
+log(Portuguese) numerical
+```{r}
+log.d2 %>% 
+  select(G2, famrel, absences, Medu, goout, G1, failures, age, Dalc, traveltime, G3) %>% 
+  pivot_longer(-G3) %>% 
+  ggplot(aes(x=value,y=G3))  + 
+  geom_jitter(width=0.1,height=1,alpha=0.2)+ 
+  geom_smooth(method= "lm", color = "red", se = FALSE)+
+  facet_wrap(~name,scales='free') + 
+  labs(x = "Independent Features", y = "Log G3", title = "Portuguese Data Relationship with Each Numerical Feature")
+```
+
+log(Math) categorical
+```{r}
+log.d1 %>% select(nursery, Fjob, G3) %>% pivot_longer(-G3) %>% 
+  ggplot(aes(x = value, y = G3, fill = value)) +
+  geom_boxplot(color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features", y = "Log G3", title = "Math Data Relationship with Each Categorical Feature") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust = 1)) +guides(fill = "none")
+```
+
+log(Portuguese) categorical
+```{r}
+log.d2 %>% select(nursery, Fjob, G3) %>% pivot_longer(-G3) %>% 
+  ggplot(aes(x = value, y = G3, fill = value)) +
+  geom_boxplot(color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features", y = "Log G3", title = "Portuguese Data Relationship with Each Categorical Feature") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(vjust = 0.5, hjust = 1)) +guides(fill = "none")
+```
+
+
+## The code under this is not included in the Powerpoint
+
+##### Focusing on log(math$G3) relationship with 'address', 'Medu', 'Mjob', 'traveltime', 'nursery'.
+Also removing 'paid', 'famrel', 'goout', 'health', and 'absences'
+
+```{r}
+selected.log.d1 <- log.d1 %>% 
+  select(address, Medu, Mjob, traveltime, nursery, age, Dalc, failures, Fedu, freetime, Medu, studytime, traveltime, Walc, G3)
+
+long.d1 <- selected.log.d1 %>% mutate(across(-G3, as.character))
+long.d1 <- long.d1 %>%
+  pivot_longer(cols = -G3)
+
+long.d1 %>%
+  ggplot(aes(x=value,y=G3))  + geom_jitter(width=0.1,height=1,alpha=0.2)+
+  facet_wrap(~name,scales='free') + 
+  labs(x = "Independent Features", y = "Log G3", title = "Math Data Relationship with Each Categorical Feature")+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1)) 
+```
+
+```{r}
+long.d1 %>%
+  ggplot(aes(x = value, y = G3)) +
+  geom_col(fill = "skyblue", color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features (value)", y = "Log G3", title = "Relationship Between Log G3 and Categorical Features") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+```
+
+
+```{r}
+selected.d1.categorical <- d1 %>% 
+  select_if(is.character)  %>%
+  bind_cols(d1 %>% select(G3))
+
+selected.d1.categorical.long <- selected.d1.categorical %>% mutate(across(-G3))
+
+selected.d1.categorical.long <- selected.d1.categorical.long %>%
+  pivot_longer(cols = -G3)
+
+selected.d1.categorical.long %>%
+  ggplot(aes(x = value, y = G3)) +
+  geom_boxplot(fill = "skyblue", color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features (value)", y = "Log G3", title = "Relationship Between Log G3 and Categorical Features") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+```
+
+
+```{r}
+log.d2 %>% select(where(is.numeric)) %>% pivot_longer(-G3) %>% 
+  ggplot(aes(x=value,y=G3))+geom_jitter(width=0.1,height=1,alpha=0.2)+
+  facet_wrap(~name,scales='free') + 
+  labs(x = "Independent Features", y = "Log G3", title = "Portuguese Data Relationship with Each Numerical Feature")
+```
+
+For Porturgese data set, we can see strong correlation between G1 and G3 and G2 and G3. There is also slight correlation between failures, absences, famrel, age, Dalc, Medu vs G3.
+
+##### Focusing on log(math$G3) relationship without 'internet' variable.
+
+```{r}
+selected.log.d2 <- log.d2 %>% 
+  select(address, Medu, Mjob, traveltime, nursery, age, Dalc, failures, Fedu, freetime, Medu, studytime, traveltime, Walc, G3)
+
+long.d2 <- selected.log.d2 %>% mutate(across(-G3, as.character))
+long.d2 <- long.d2 %>%
+  pivot_longer(cols = -G3)
+
+long.d2 %>%
+  ggplot(aes(x=value,y=G3))  + geom_jitter(width=0.1,height=1,alpha=0.2)+
+  facet_wrap(~name,scales='free') + 
+  labs(x = "Independent Features", y = "Log G3", title = "Portuguese Data Relationship with Each Categorical Feature")+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust=1)) 
+```
+
+
+```{r}
+long.d2 %>%
+  ggplot(aes(x = value, y = G3)) +
+  geom_col(fill = "skyblue", color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features (value)", y = "Log G3", title = "Relationship Between Log G3 and Categorical Features") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+```
+
+```{r}
+long.d2 %>%
+  ggplot(aes(x = value, y = G3)) +
+  geom_boxplot(fill = "skyblue", color = "black", alpha = 0.7) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features (value)", y = "Log G3", title = "Relationship Between Log G3 and Categorical Features") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = 1))
+```
+
+
+##### Pearson correlation test for log(dataset$G3)
+Assumption: Continuous data, normally distributed, linear relationship between two, no outliers.
+```{r}
+log.d1.results <- data.frame(Independent.Variable = character(), Correlation = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
+
+log.d1 <- log.d1 %>% select(where(is.numeric))
+
+for (col in names(log.d1)) {
+  # Skip the target variable
+  if (col != "G3") {
+    # Perform the Pearson correlation test
+    test_result <- cor.test(log.d1[[col]], log.d1$G3)
+    
+    # Store the results
+    log.d1.results <- rbind(log.d1.results, data.frame(Independent.Variable = col, 
+                                          correlation = test_result$estimate, 
+                                          p_value = test_result$p.value))
+  }
+}
+sorted.log.d1.results <- log.d1.results[order(-log.d1.results$correlation), ]
+
+sorted.log.d1.results
+```
+
+```{r}
+log.d2.results <- data.frame(Independent.Variable = character(), Correlation = numeric(), p_value = numeric(), stringsAsFactors = FALSE)
+
+log.d2 <- log.d2 %>% select(where(is.numeric))
+
+for (col in names(log.d2)) {
+  # Skip the target variable
+  if (col != "G3") {
+    # Perform the Pearson correlation test
+    test_result <-  cor.test(log.d2[[col]], log.d2$G3)
+    
+    # Store the results
+    log.d2.results <- rbind(log.d2.results, data.frame(Independent.Variable = col, 
+                                          correlation = test_result$estimate, 
+                                          p_value = test_result$p.value))
+  }
+}
+sorted.log.d2.results <- log.d2.results[order(-log.d2.results$correlation), ]
+
+sorted.log.d2.results
+```
+
+
+```{r}
+p <- ggplot(d1, aes(x=G3)) + 
+  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666") 
+# Add mean line
+p+ geom_vline(aes(xintercept=mean(G3)),
+            color="blue", linetype="dashed", size=1) + ggtitle(label = "Math Data Set")
+```
+
+```{r}
+p <- ggplot(og.d1, aes(x=G3)) + 
+  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666") 
+# Add mean line
+p+ geom_vline(aes(xintercept=mean(G3)),
+            color="blue", linetype="dashed", size=1) + ggtitle(label = "Math Data Set")
+```
+
+```{r}
+p <- ggplot(d2, aes(x=G3)) + 
+  geom_histogram(aes(y=after_stat(density)), colour="black", fill="white")+
+ geom_density(alpha=.2, fill="#FF6666") 
+# Add mean line
+p+ geom_vline(aes(xintercept=mean(G3)),
+            color="blue", linetype="dashed", size=1) + ggtitle(label = "Porturgese Data Set")
+```
+
+
+# END DATA DESCRIPTION ^^^
+
+
+# Models For Math d1
+
+### Multiple Stepwise Regression Model
+
+```{r step-model}
+null.model <- lm(G3 ~ 1, data = d1)
+full.model <- lm(G3 ~ ., data = d1)
+
+stepwise.model <- step(null.model, scope = list(lower = null.model, upper = full.model),
+                       direction = "both", trace = FALSE)
+stepwise.model
+summary(stepwise.model) 
+```
+
+### Backward Variable Selection Model
+
+```{r Backward-variable-selection}
+# FULL MODEL START
+M1 = lm(G3 ~ ., data = d1)
+# drop1(M1, test = "F")
+
+# Remove Mjob since it has largest F-statistics p-value 
+M2 = update(M1, . ~ . -internet)
+# drop1(M2, test = "F")
+
+M3 = update(M2, . ~ . -Walc)
+# drop1(M3, test = "F")
+
+M4 = update(M3, . ~ . -higher)
+# drop1(M4, test = "F")
+
+M5 = update(M4, . ~ . -romantic)
+# drop1(M5, test = "F")
+
+M6 = update(M5, . ~ . -activities)
+# drop1(M6, test = "F")
+
+M7 = update(M6, . ~ . -freetime)
+# drop1(M7, test = "F")
+
+M8 = update(M7, . ~ . -Fjob)
+# drop1(M8, test = "F")
+
+M9 = update(M8, . ~ . -sex)
+# drop1(M9, test = "F")
+
+M10 = update(M9, . ~ . -failures)
+# drop1(M10, test = "F")
+
+M11 = update(M10, . ~ . -Dalc)
+# drop1(M11, test = "F")
+
+M12 = update(M11, . ~ . -Fedu)
+# drop1(M12, test = "F")
+
+M13 = update(M12, . ~ . -studytime)
+# drop1(M13, test = "F")
+
+M14 = update(M13, . ~ . -reason)
+# drop1(M14, test = "F")
+
+M15 = update(M14, . ~ . -traveltime)
+# drop1(M15, test = "F")
+
+M16 = update(M15, . ~ . -school)
+# drop1(M16, test = "F")
+
+M17 = update(M16, . ~ . -Medu)
+# drop1(M17, test = "F")
+
+M18 = update(M17, . ~ . -famsize)
+# drop1(M18, test = "F")
+
+M19 = update(M18, . ~ . -age)
+# drop1(M19, test = "F")
+
+M20 = update(M19, . ~ . -famsup)
+# drop1(M20, test = "F")
+
+M21 = update(M20, . ~ . -schoolsup)
+# drop1(M21, test = "F")
+
+M22 = update(M21, . ~ . -guardian)
+# drop1(M22, test = "F")
+
+M23 = update(M22, . ~ . -address)
+drop1(M23, test = "F")
+
+M24 = update(M23, . ~ . -Pstatus)
+drop1(M24, test = "F")
+
+M25 = update(M24, . ~ . -nursery)
+drop1(M25, test = "F")
+
+M26 = update(M25, . ~ . -Mjob)
+drop1(M26, test = "F")
+
+M27 = update(M26, . ~ . -goout)
+drop1(M27, test = "F")
+
+M28 = update(M27, . ~ . -absences)
+drop1(M28, test = "F")
+
+M29 = update(M28, . ~ . -paid)
+# drop1(M29, test = "F")
+
+M30 = update(M29, . ~ . -health)
+# drop1(M30, test = "F")
+
+M31 = update(M30, . ~ . -G1)
+# drop1(M31, test = "F")
+
+M32 = update(M31, . ~ . -famrel)
+# drop1(M32, test = "F")
+
+M33 = update(M32, . ~ . -G2)
+# drop1(M33, test = "F")
+
+```
+
+Model selection method: The smaller the AIC the better the model; Models that differ by less than one or two AIC values can be regarded as somewhat equally well fitting.
+
+Order of removal : internet, Walc, higher, romantic, activities, freetime, Fjob, sex , failures, Dalc, Fedu, studytime, reason, traveltime, school, Medu, famsize, age, famsup, schoolsup, guardian, address, Pstatus, nursery, Mjob, goout, absences, paid, health, G1, famrel, G2, G3
+
+### Model Coefficient Analysis
+
+For backward variable selection, this model has the lowest AIC of -146.33.
+
+Model: G3 \~ paid + famrel + goout + health + absences + G1 + G2 Df Sum of Sq RSS AIC F value Pr(\>F)\
+<none> 226.56 -146.33\
+paid 1 1.36 227.92 -146.20 2.0932 0.1488539\
+famrel 1 6.82 233.38 -137.75 10.4994 0.0013090 \*\* goout 1 2.76 229.33 -144.00 4.2576 0.0398145 \*\
+health 1 3.04 229.60 -143.57 4.6829 0.0311416 \*\
+absences 1 2.48 229.04 -144.45 3.8152 0.0515890 .\
+G1 1 8.35 234.91 -135.42 12.8565 0.0003842 ***G2 1 479.74 706.31 257.59 739.0055 \< 2.2e-16*** --- Signif. codes: 0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+Comparing to step model where the output is this:
+
+Call: lm(formula = G3 \~ G2 + G1 + famrel + goout + health + absences + paid, data = d1)
+
+Coefficients: (Intercept) G2 G1 famrel goout health absences paidyes\
+0.32012 0.87580 0.11082 0.15768 -0.08193 -0.06656 -0.01054 -0.12377
+
+Both model selection method selects the same variables for multiregression to predict G3.
+
+### Model Performance Analysis
+
+```{r}
+par(mfrow=c(2,2))
+plot(stepwise.model)
+```
+
+```{r}
+library(ggfortify)
+autoplot(stepwise.model,which=1:2)
+```
+
+```{r}
+library(reshape2)
+library(ggplot2)
+library(broom)
+
+coef_df <- tidy(stepwise.model)
+
+# Coefficient Plot
+coef_plot <- ggplot(coef_df, aes(x = term, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = estimate - std.error * 1.96, ymax = estimate + std.error * 1.96), width = 0.2) +
+  coord_flip() +
+  labs(title = "Coefficient Plot", x = "Predictor", y = "Estimate") +
+  theme_minimal()
+
+# Actual vs. Predicted Plot
+predicted_values <- augment(stepwise.model)
+
+actual_predicted_plot <- ggplot(predicted_values, aes(x = .fitted, y = G3)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", color = "blue") +
+  labs(title = "Actual vs. Predicted", x = "Predicted G3", y = "Actual G3") +
+  theme_minimal()
+
+# Residual Plot
+residual_plot <- ggplot(predicted_values, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residual Plot", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+
+# Print plots
+print(coef_plot)
+print(actual_predicted_plot)
+print(residual_plot)
+```
+
+```{r}
+predicted_values <- augment(stepwise.model)
+
+melted_data <- predicted_values %>%
+  melt(measure.vars = c("G2", "G1", "famrel", "goout", "health", "absences", "paid"), 
+       variable.name = "IV")
+
+
+ggplot(melted_data, aes(value, G3)) +  
+  geom_point(alpha = 0.6) + 
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_jitter(width=0.1,height=1,alpha=0.2)+
+  facet_wrap(~IV, scales = "free_x") +  
+  labs(title = "Effect of Independent Variables on G3",
+       x = "Independent Variables (IV)",
+       y = "Actual G3") +
+  theme_minimal()
+
+stepwise.model
+```
+
+```{r}
+coefficients_df <- tidy(stepwise.model)
+
+coefficients_df <- coefficients_df %>%
+  mutate(abs_estimate = abs(estimate)) %>%
+  arrange(desc(abs_estimate))  # Order by magnitude
+
+coefficients_df <- coefficients_df %>%
+  filter(term != "(Intercept)")
+
+ggplot(coefficients_df, aes(x = reorder(term, abs_estimate), y = abs_estimate)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +  # Flip coordinates for better readability
+  labs(title = "Magnitude of Effect of Each Predictor on G3",
+       x = "Predictor Variable",
+       y = "Absolute Value of Coefficient") +
+  theme_minimal()
+```
+
+### Use d1 Model on d2 data set
+
+```{r}
+library(Metrics)
+predictions_d1 <- predict(stepwise.model, newdata = d1)
+
+# Calculate RMSE on d1(math)
+rmse_d1 <- rmse(d1$G3, predictions_d1)
+
+# Calculate R-squared on d1 (math)
+rss_d1 <- sum((d1$G3 - predictions_d1)^2)   # Residual Sum of Squares
+tss_d1 <- sum((d1$G3 - mean(d1$G3))^2)     # Total Sum of Squares
+r_squared_d1 <- 1 - (rss_d1/tss_d1)
+
+# 2. Performance on d2 (Portugese)
+# Make predictions on d2
+predictions_d2 <- predict(stepwise.model, newdata = d2)
+
+# Calculate RMSE on d2
+rmse_d2 <- rmse(d2$G3, predictions_d2)
+
+# Calculate R-squared on d2
+rss_d2 <- sum((d2$G3 - predictions_d2)^2)   # Residual Sum of Squares
+tss_d2 <- sum((d2$G3 - mean(d2$G3))^2)     # Total Sum of Squares
+r_squared_d2 <- 1 - (rss_d2/tss_d2)
+
+cat("Performance on d1 (Training Data):\n")
+cat("RMSE:", rmse_d1, "\n")
+cat("R-squared:", r_squared_d1, "\n\n")
+
+cat("Performance on d2 (New Data):\n")
+cat("RMSE:", rmse_d2, "\n")
+cat("R-squared:", r_squared_d2, "\n")
+```
+
+# Exhaustive Search (Extra)
+
+```{r leaps, eval = FALSE}
+library(leaps)
+exh_leaps = regsubsets(G3~., data = d1, nvmax = 15)
+summary(exh_leaps)$outmat
+```
+
+```{r plot-leaps,  eval = FALSE}
+plot(exh_leaps, scale = "Cp") 
+```
+
+scale = "Cp": Plots the Mallows' Cp statistic for each model, where lower values indicate better models. scale = "adjr2": Plots adjusted R² for each model, where higher values indicate better models. scale = "bic": Plots the Bayesian Information Criterion (BIC), where lower values indicate better models.
+
+```{r exhaustive, eval = FALSE}
+library(lmSubsets)
+exh = lmSubsets(G3 ~ ., data = d1, nbest = 15)
+plot(exh)
+```

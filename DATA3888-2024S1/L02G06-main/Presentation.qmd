@@ -1,0 +1,252 @@
+---
+title: "Modeling Student Success"
+subtitle: "Presented by Team L02G06"
+author: "Niharika, Yutong, Zichun, Yizhen, and Hannah"
+format:
+  revealjs:
+    autoSlide: 20000
+    embed-resources: true
+    transition: "fade"  
+    css: custom.css 
+    width: 95%
+    margin: 0
+    padding: 0
+    height: 95%
+editor:
+  markdown:
+    wrap: sentence
+---
+
+## What’s Behind the Numbers?
+
+<br>
+<br>
+
+<div style="margin-left: 90px;">
+
+- The data comes from two Portuguese secondary schools (2014):
+  - Math
+  - Portuguese
+- Both consist of 32 features. (19 Numerical and 13 Categorical)
+- <span class="metric highlight">Target variable for prediction is G3</span>, the final grade, ranging from 0 - 20.
+- No missing values were detected in both datasets.
+</div>
+
+## What’s Behind the Numbers?
+
+<br>
+
+<div style="margin-left: 90px;">
+
+- Both Data Sets consist of 32 features. (19 Numerical and 13 Categorical)
+- <span class="metric highlight">Target variable for prediction is G3</span>, the final grade, ranging from 0 - 20.
+- No missing values were detected in both datasets.
+- Goal: Find what factors affect student grades and how to help students and educators achieve higher grades
+- Categorical data column names: 
+  - school, sex, address, famsize, Pstatus, Mjob, Fjob, 
+  - reason, guardian, schoolsup, famsup, paid, activities,
+  - nursery, higher, internet, romantic
+</div>
+
+
+## Math Data Set Distribution
+
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/Math Distribution Numerical.png" alt="Math Data distribution of each feature" 
+       style="width: 65%; height: auto; margin: 0 auto;"> 
+</div>
+
+
+## Portuguese Data Set Distribution
+
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/Portuguese Distribution Numerical.png" alt="Math Data distribution of each feature" 
+       style="width: 65%; height: auto; margin: 0 auto;"> 
+</div>
+
+
+## Math Grades (G3): Predicting with Log(G3)
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/math_norm_log.png" alt="Math Data distribution of each feature" 
+       style="width: 65%; height: auto; margin: 0 auto;"> 
+</div>
+
+## Portuguese Scores: Breaking It Down
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/port_norm_log.png" alt="Math Data distribution of each feature" 
+       style="width: 65%; height: auto; margin: 0 auto;"> 
+</div>
+
+## Insights: Backward vs. Stepwise
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: -10px;">
+  <!-- Left plot -->
+  <img src="./images/math_back_step.png" alt="Math Backward vs Stepwise" style="width: 100%; height: auto;">
+  
+  <!-- Right plot -->
+  <img src="./images/port_back_step.png" alt="Portuguese Backward vs Stepwise" style="width: %; height: auto;">
+</div>
+
+
+## Linearity Check: Straight Talk on Assumptions
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: -10px;">
+  <!-- Left plot -->
+  <img src="./images/Math Correlation.png" alt="Math Boxplot" style="width: 100%; height: auto;">
+  
+  <!-- Right plot -->
+  <img src="./images/Portuguese Correlation.png" alt="Portuguese Boxplot" style="width: %; height: auto;">
+</div>
+
+
+## Linearity Check: Straight Talk on Assumptions
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: -10px;">
+  <!-- Left plot -->
+  <img src="./images/Math Boxplot.png" alt="Math Boxplot" style="width: 100%; height: auto;">
+  
+  <!-- Right plot -->
+  <img src="./images/Portuguese Boxplot.png" alt="Portuguese Boxplot" style="width: %; height: auto;">
+</div>
+
+
+## Homoscedasticity: Testing the Evenness
+
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: -10px;">
+  <!-- Left plot -->
+  <img src="./images/Normal1.png" alt="Math Boxplot" style="width: 100%; height: auto;">
+  
+  <!-- Right plot -->
+  <img src="./images/Normal2.png" alt="Portuguese Boxplot" style="width: %; height: auto;">
+</div>
+
+
+## Normality Check: Are We on Track?
+
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: -10px;">
+  <!-- Left plot -->
+  <img src="./images/QQ1.png" alt="Math Boxplot" style="width: 100%; height: auto;">
+  
+  <!-- Right plot -->
+  <img src="./images/QQ2.png" alt="Portuguese Boxplot" style="width: %; height: auto;">
+</div>
+
+
+## Math’s Top Model: The Winning Equation
+
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/Math_Yutong.png" alt="Math Data distribution of each feature" 
+       style="width: 36%; height: auto; margin: 0 auto;"> 
+</div>
+
+<div style="margin-left: 0px;">
+<p>log(G3) = <span class="metric highlight">1.3968626</span> + <span class="metric">0.0274458</span> addressU - <span class="metric">0.0120656</span> Medu + <span class="metric">0.0359835</span> Mjobhealth - <span class="metric">0.0109299</span> Mjobother + <span class="metric">0.0015767</span> Mjobservices + <span class="metric">0.0313414</span> Mjobteacher + <span class="metric">0.0131041</span> traveltime - <span class="metric">0.0261929</span> nurseryyes + <span class="metric">0.0140297</span> famrel - <span class="metric">0.0135364</span> goout - <span class="metric">0.0009832</span> absences + <span class="metric">0.0081809</span> G1 + <span class="metric highlight">0.0806517</span> G2.</p>
+</div>
+
+
+## Math Insights: What We Learned
+
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/Math_Yutong.png" alt="Math Data distribution of each feature" 
+       style="width: 36%; height: auto; margin: 0 auto;"> 
+</div>
+
+<div style="margin-left: 0px;">
+log(G3) = <span class="metric highlight">1.3968626</span> + <span class="metric">0.0274458</span> addressU - <span class="metric">0.0120656</span> Medu + <span class="metric">0.0359835</span> Mjobhealth - <span class="metric">0.0109299</span> Mjobother + <span class="metric">0.0015767</span> Mjobservices + <span class="metric">0.0313414</span> Mjobteacher + <span class="metric">0.0131041</span> traveltime - <span class="metric">0.0261929</span> nurseryyes + <span class="metric">0.0140297</span> famrel - <span class="metric">0.0135364</span> goout - <span class="metric">0.0009832</span> absences + <span class="metric">0.0081809</span> G1 + <span class="metric highlight">0.0806517</span> G2.
+</div>
+
+
+## Portuguese’s Best Fit: The Top Predictor
+
+<div style="text-align: center; margin-top: 10px;"> 
+  <img src="./images/Port_Yutong.png" alt="Math Data distribution of each feature" 
+       style="width: 41%; height: auto; margin: 0 auto;"> 
+</div>
+
+<div style="margin-left: 0px;">
+log(G3) = <span class="metric highlight">1.373795</span> + <span class="metric">0.012734</span>⋅age + <span class="metric">0.014982</span>⋅traveltime - <span class="metric">0.042381</span>⋅failures + <span class="metric">0.033537</span>⋅higheryes - <span class="metric">0.008037</span>⋅goout - <span class="metric">0.016241</span>⋅Dalc + <span class="metric">0.016684</span>⋅G1 + <span class="metric highlight">0.059568</span>⋅G2
+</div>
+
+
+## Head-to-Head: Math vs. Portuguese
+
+<br>
+
+
+| **Factor**               | **Math Student**                                                                                   | **Portuguese Student**                                                                          |
+|--------------------------|---------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| **Positive**              | <span class="metric">Family Relationships</span>, <span class="metric">Living in Urban Areas</span> | <span class="metric highlight">Age</span>, <span class="metric highlight">Travel Time</span>     |
+| **Negative**              | <span class="metric">Kindergarten Attendance</span>, <span class="metric">Socializing Outside</span> | <span class="metric">Failures</span>, <span class="metric">Daily Alcohol Consumption</span>       |
+| **Both Subjects**         | <span class="metric highlight">Previous Grades</span>                                              | <span class="metric highlight">Previous Grades</span>                                            |
+
+
+## Head-to-Head: Math vs. Portuguese
+
+<br>
+
+
+| **Factor**               | **Math Student**                                                                                   | **Portuguese Student**                                                                          |
+|--------------------------|---------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| **Positive**              | <span class="metric">Family Relationships</span>, <span class="metric">Living in Urban Areas</span> | <span class="metric highlight">Age</span>, <span class="metric highlight">Travel Time</span>     |
+| **Negative**              | <span class="metric">Kindergarten Attendance</span>, <span class="metric">Socializing Outside</span> | <span class="metric">Failures</span>, <span class="metric">Daily Alcohol Consumption</span>       |
+| **Both Subjects**         | <span class="metric highlight">Previous Grades</span>                                              | <span class="metric highlight">Previous Grades</span>  
+
+
+## What Did We Miss?
+
+
+<div style="display: flex; justify-content: center;">
+  <table style="width: 70%; text-align: center; border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th style="padding: 10px;">**Factor**</th>
+        <th style="padding: 10px;">**Explanation**</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding: 10px;">Reliance on Stepwise Selection</td>
+        <td style="padding: 10px;"><span class="metric">Statistical criteria over theory.</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px;">Multicollinearity Risks</td>
+        <td style="padding: 10px;"><span class="metric">Key variables may be omitted.</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px;">Cultural/Environmental Factors</td>
+        <td style="padding: 10px;"><span class="metric">Lacks native speaker context.</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px;">Simplistic View</td>
+        <td style="padding: 10px;"><span class="metric">Oversimplifies social factors.</span></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px;">Bias Risks</td>
+        <td style="padding: 10px;"><span class="metric">Increased risk of bias.</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+## What’s Next? Future Research
+
+- Non-linear Models: Explore random forests, decision trees for complexity.
+- Interactions: How combined factors (e.g., social time + study) impact performance.
+- Time-series Data: Gather data over time for deeper academic insights.
+  
+<div style="text-align: center; margin-top: 10px;">
+  <img src="./images/time_series.jpg" alt="Time Series Data" style="width: 38%; height: auto; margin-left: 24%; margin-right: 0;">
+</div>
+
+## From Data to Action: Real-World Impact
+
+- Early Identification: Use G1, G2 for predicting at-risk students.
+- Reduce Absences: Improve study habits for better grades.
+- Health & Well-being: Address through programs for better academic performance.
+  
+<div style="text-align: center; margin-top: 5px;">
+  <img src="./images/Conclusion.png" alt="Time Series Data" style="width: 26%; height: auto; margin-left: 34%; margin-right: 0;">
+</div>

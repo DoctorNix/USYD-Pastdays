@@ -1,0 +1,43 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'jacoco'
+}
+
+group = 'soft2412'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+application {
+    mainClass = 'soft2412.Main'
+}
+
+run {
+    standardInput = System.in
+}
+dependencies {
+    // Define the dependencies for JUnit 5
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = false
+        csv.required = false
+    }
+}
+
+test {
+    useJUnitPlatform()
+
+}
+test {
+    finalizedBy jacocoTestReport
+}
+jacocoTestReport {
+    dependsOn test
+}

@@ -1,0 +1,25 @@
+---
+title: "Result"
+author: "Yutong Han 530341851"
+subtitle: "data2002 report result part"
+output:
+  html_document:
+    code_folding: hide  # don't change this
+    code_download: true # embed .Rmd file
+    toc: true  # table of contents
+    toc_depth: 3
+    toc_float: true # toc is always visible when scrolled
+    number_sections: true # add section numbers to headings 
+    df_print: paged # format data frame outputs automatically
+    theme: sandstone # theme the doc
+    highlight: tango # theme syntax colouring
+---
+# Result
+
+## For Portuguese data set
+
+For the Portuguese data set, based on RMSE and R² values, the backward linear model is the most suitable, and the variables shown in the figure are significant predictors screened through a backward selection process. G2 (second semester grade) : has the greatest impact on final grade, with a normalization coefficient of 0.76, indicating a positive effect. G1 (first semester grade) : The normalization coefficient is 0.18, which has a strong positive effect on the final grade. traveltime (commute time) and Medu (mother's education level) also had a positive impact on the target variable, with standardization coefficients of 0.16 and 0.11, respectively. age has a positive effect on the score, but the effect is small, and the standardization coefficient is 0.09. Fjobhealth (maternal employment as a health field) has the strongest negative effect on performance, with a normalization coefficient of -0.72. Fjobteacher, Fjobother and Fjobservices also have negative effects, with coefficients of -0.43, -0.41 and -0.33, respectively. Variables such as sexM (gender being male), failures (number of school failures), and schoolMS (type of school being MS) also had negative effects, with values of -0.24, -0.18, and -0.16, respectively. absences (number of absences) had very little effect on the target variable, with a normalization coefficient close to 0. Through this study, we can note that the influence of previous grades (G1 and G2) on students' G3 grades is very large. For lower grade students, higher final grades (G3) can be obtained by improving their grades in the first and second terms. The number of academic failures has a negative impact on the score, and the coefficient is -0.18. Students can avoid the failure in the subject examination as much as possible, and improve the final score through reasonable study plan, time management and effective study methods. Having parents in certain occupations (e.g., health, teaching, other occupations, services) has a negative effect on achievement, especially in the health field (coefficient -0.72).
+
+## For Math data set
+
+For the mathematics data set, the stepwise linear model is the most suitable, this graph shows the normalization coefficient of significant predictors in the stepwise selection model. G2 (second semester grade) is the positive variable that has the greatest influence on the final grade (G3), and the normalization coefficient is 0.88, indicating that G2 has a great influence on G3. In other words, improving the grade in the second semester has the biggest boost to the final grade of math students. famrel (Family Relationship Quality) : The standardization coefficient is 0.14. This shows that students with better family relationships usually perform better, and family support plays a positive role in students' learning. The G1 (first semester grade) normalization coefficient of 0.10 also has a positive effect on G3, indicating that the first semester grade is still an important factor in the final grade, but its effect is much smaller than that of G2. The health standardization coefficient is 0.06, which has a small positive effect on G3, and students' health status has some effect on their final grades. In general, for math students, as well as Portuguese students, previous academic records also play a crucial role in the final score of G3, especially G2, and family relationships and maintaining good health also play a role in the final score of students.

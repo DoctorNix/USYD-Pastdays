@@ -1,0 +1,529 @@
+---
+title: "Revision_with_12"
+author: "Yizhen Pan"
+date: "2024-11-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r library}
+# Load necessary libraries
+library(dplyr)
+library(broom)
+library(MASS)
+library(car)
+library(lmtest)
+library(ggplot2)
+```
+# ------------------------------
+# Part 1: Portuguese Dataset (Including G1 and G2)
+# ------------------------------
+```{r port}
+# Load the dataset and filter out rows with G3 = 0
+port_data <- read.csv("student-por.csv", sep = ";") %>%
+  filter(G3 != 0)
+
+# Convert character columns to factors
+factor_cols <- sapply(port_data, is.character)
+port_data[factor_cols] <- lapply(port_data[factor_cols], factor)
+
+# Identify Outliers in G3
+port_data$G3_zscore <- scale(port_data$G3)
+port_data <- port_data[abs(port_data$G3_zscore) <= 3, ]
+port_data <- port_data %>% dplyr::select(-G3_zscore)
+
+# Train-test split (70% training, 30% testing)
+set.seed(42)
+train_index <- sample(1:nrow(port_data), size = floor(0.7 * nrow(port_data)))
+train_port <- port_data[train_index, ]
+test_port <- port_data[-train_index, ]
+
+# --- RMSE Calculation Function ---
+calculate_rmse <- function(true_values, predicted_values) {
+  sqrt(mean((true_values - predicted_values)^2))
+}
+
+# --- R² and Adjusted R² Calculation Functions ---
+calculate_r2 <- function(true_values, predicted_values) {
+  ss_total <- sum((true_values - mean(true_values))^2)
+  ss_residual <- sum((true_values - predicted_values)^2)
+  1 - (ss_residual / ss_total)
+}
+
+calculate_adj_r2 <- function(r2, n, k) {
+  1 - (1 - r2) * ((n - 1) / (n - k - 1))
+}
+
+# --- Model Fitting ---
+
+# 1. Initial Linear Model
+lin_mod_port <- lm(G3 ~ ., data = train_port)
+
+# Extract the summary to get p-values
+lin_mod_summary <- summary(lin_mod_port)
+p_values <- coef(lin_mod_summary)[, "Pr(>|t|)"]
+
+# Identify significant predictors (p-value < 0.1), excluding the intercept
+significant_terms <- names(p_values)[p_values < 0.1 & names(p_values) != "(Intercept)"]
+
+# Map the significant terms back to the original variable names
+
+# Get the model matrix and assign attribute
+mm <- model.matrix(lin_mod_port)
+assign <- attr(mm, "assign")
+
+# Get the terms labels
+terms_obj <- terms(lin_mod_port)
+terms_labels <- attr(terms_obj, "term.labels")
+
+# Map each coefficient to the corresponding variable
+coef_names <- names(coef(lin_mod_port))
+coef_terms <- sapply(assign, function(x) if (x == 0) "(Intercept)" else terms_labels[x])
+
+# Create a data frame mapping coefficients to variables
+coef_variable_map <- data.frame(
+  term = coef_names,
+  variable = coef_terms,
+  stringsAsFactors = FALSE
+)
+
+# Get unique variable names corresponding to significant terms
+significant_variables <- unique(coef_variable_map$variable[coef_variable_map$term %in% significant_terms])
+
+# Create formula with significant variables
+significant_formula <- as.formula(paste("G3 ~", paste(significant_variables, collapse = " + ")))
+
+# Refit the refined Linear Model
+refined_lin_mod_port <- lm(significant_formula, data = train_port)
+
+# 2. Repeat the same process for the Log-Transformed Model
+log_mod_port <- lm(log(G3) ~ ., data = train_port)
+log_mod_summary <- summary(log_mod_port)
+p_values_log <- coef(log_mod_summary)[, "Pr(>|t|)"]
+significant_terms_log <- names(p_values_log)[p_values_log < 0.1 & names(p_values_log) != "(Intercept)"]
+
+# Map the significant terms back to variables
+mm_log <- model.matrix(log_mod_port)
+assign_log <- attr(mm_log, "assign")
+terms_obj_log <- terms(log_mod_port)
+terms_labels_log <- attr(terms_obj_log, "term.labels")
+coef_names_log <- names(coef(log_mod_port))
+coef_terms_log <- sapply(assign_log, function(x) if (x == 0) "(Intercept)" else terms_labels_log[x])
+
+coef_variable_map_log <- data.frame(
+  term = coef_names_log,
+  variable = coef_terms_log,
+  stringsAsFactors = FALSE
+)
+
+significant_variables_log <- unique(coef_variable_map_log$variable[coef_variable_map_log$term %in% significant_terms_log])
+
+significant_formula_log <- as.formula(paste("log(G3) ~", paste(significant_variables_log, collapse = " + ")))
+
+# Refit the refined Log-Transformed Model
+refined_log_mod_port <- lm(significant_formula_log, data = train_port)
+
+# 3. Backward Selection Model
+backward_mod_port <- stepAIC(lin_mod_port, direction = "backward", trace = FALSE)
+
+# 4. Stepwise Selection Model
+stepwise_mod_port <- stepAIC(lin_mod_port, direction = "both", trace = FALSE)
+
+# --- Performance Metrics Calculation ---
+
+models_port <- list(
+  "Refined Linear Model" = refined_lin_mod_port,
+  "Refined Log-Transformed Model" = refined_log_mod_port,
+  "Backward Model" = backward_mod_port,
+  "Stepwise Model" = stepwise_mod_port
+)
+
+results_port <- data.frame()
+
+for (model_name in names(models_port)) {
+  model <- models_port[[model_name]]
+  
+  # Number of predictors
+  n_train <- nrow(train_port)
+  k <- length(coef(model)) - 1  # Subtract 1 for the intercept
+  
+  # In-Sample Predictions
+  if (grepl("log\\(G3\\)", as.character(model$call$formula)[2])) {
+    # For log-transformed model, exponentiate predictions
+    train_predictions <- exp(predict(model, train_port))
+    test_predictions <- exp(predict(model, test_port))
+  } else {
+    train_predictions <- predict(model, train_port)
+    test_predictions <- predict(model, test_port)
+  }
+  
+  # In-Sample RMSE Calculation (Step by Step)
+  residuals_train <- train_port$G3 - train_predictions
+  squared_residuals_train <- residuals_train^2
+  mse_train <- mean(squared_residuals_train)
+  rmse_train <- sqrt(mse_train)
+  
+  # Out-of-Sample RMSE Calculation (Step by Step)
+  residuals_test <- test_port$G3 - test_predictions
+  squared_residuals_test <- residuals_test^2
+  mse_test <- mean(squared_residuals_test)
+  rmse_test <- sqrt(mse_test)
+  
+  # R² and Adjusted R²
+  r2_train <- calculate_r2(train_port$G3, train_predictions)
+  adj_r2_train <- calculate_adj_r2(r2_train, n_train, k)
+  
+  r2_test <- calculate_r2(test_port$G3, test_predictions)
+  
+  # Compile Results
+  results_port <- rbind(results_port, data.frame(
+    Model = model_name,
+    RMSE_Train = rmse_train,
+    R2_Train = r2_train,
+    Adj_R2_Train = adj_r2_train,
+    RMSE_Test = rmse_test,
+    R2_Test = r2_test
+  ))
+}
+
+# Display the results
+cat("\nPortuguese Dataset Model Performance:\n")
+print(results_port)
+```
+# --- Identify the Most Appropriate Model ---
+Based on RMSE and R² values, the backward model is most appropriate for the portguese set
+Reason:
+1.Superior Performance: Slightly better RMSE and R² values compared to the Refined Linear Model (0.8208 vs 0.8362 in RMSE train, 0.9049 vs 0.9013 in R^2 train).
+2.Generalization: Similar performance metrics on training and testing sets suggest the model generalizes well to unseen data.
+
+```{r}
+# Function to extract significant standardized coefficients
+extract_significant_coefs <- function(model, model_name, p_threshold = 0.1) {
+  # Calculate standardized coefficients
+  standardized_model <- lm.beta::lm.beta(model)
+  
+  # Tidy the model output
+  tidy_model <- broom::tidy(standardized_model)
+  
+  # Rename the estimate column to standardized_estimate
+  tidy_model <- tidy_model %>% 
+    rename(standardized_estimate = estimate)
+  
+  # Add the model name
+  tidy_model <- tidy_model %>% 
+    mutate(model = model_name)
+  
+  # Filter out the intercept and non-significant predictors
+  significant_coefs <- tidy_model %>% 
+    filter(term != "(Intercept)" & p.value < p_threshold)
+  
+  return(significant_coefs)
+}
+
+# Extract significant coefficients from the Backward Selection Model
+significant_coefficients_port <- extract_significant_coefs(backward_mod_port, "Backward Selection Model", p_threshold = 0.1)
+
+# Inspect the significant coefficients
+print("Significant Standardized Coefficients (p < 0.1) in Backward Selection Model:")
+print(significant_coefficients_port)
+
+# Check if there are any significant coefficients to plot
+if(nrow(significant_coefficients_port) > 0) {
+  
+  # Create the bar plot
+  ggplot(significant_coefficients_port, aes(x = reorder(term, standardized_estimate), 
+                                           y = standardized_estimate, 
+                                           fill = model)) +
+    geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+    geom_text(aes(label = round(standardized_estimate, 2)), 
+              position = position_dodge(width = 0.8), 
+              hjust = ifelse(significant_coefficients_port$standardized_estimate > 0, -0.2, 1.2), 
+              size = 3) +
+    coord_flip() +
+    labs(
+      title = "Significant Standardized Coefficients in Backward Selection Model",
+      x = "Predictors",
+      y = "Standardized Coefficient",
+      fill = "Model"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      plot.title = element_text(hjust = 0.5)
+    )
+  
+} else {
+  cat("No significant coefficients (p < 0.1) found in the Backward Selection Model.\n")
+}
+
+# Residuals vs Fitted Values
+plot(backward_mod_port, which = 1)
+
+# Q-Q Plot for Residuals
+plot(backward_mod_port, which = 2)
+
+plot(backward_mod_port, which = 5)
+# Multicollinearity Assessment
+vif_values_backward <- car::vif(backward_mod_port)
+
+# Display VIF results
+print("VIF Values for Backward Selection Model:")
+print(vif_values_backward)
+```
+
+# ------------------------------
+# Part 2: Math Dataset (Including G1 and G2)
+# ------------------------------
+```{r math}
+# ------------------------------
+# Part 1: Data Preparation
+# ------------------------------
+
+# Load the dataset and filter out rows with G3 = 0
+math_data <- read.csv("student-mat.csv", sep = ";") %>%
+  filter(G3 != 0)
+
+# Convert character columns to factors
+factor_cols <- sapply(math_data, is.character)
+math_data[factor_cols] <- lapply(math_data[factor_cols], factor)
+
+# Note: Outliers are retained as per the current requirement
+
+# Train-test split (70% training, 30% testing)
+set.seed(42)
+train_index <- sample(1:nrow(math_data), size = floor(0.7 * nrow(math_data)))
+train_math <- math_data[train_index, ]
+test_math <- math_data[-train_index, ]
+
+# ------------------------------
+# Part 2: Model Fitting
+# ------------------------------
+
+# 1. Linear Model
+lin_mod_math <- lm(G3 ~ ., data = train_math)
+
+# 2. Log-Transformed Model
+log_mod_math <- lm(log(G3) ~ ., data = train_math)
+
+# 3. Backward Selection Model
+backward_mod_math <- stepAIC(lin_mod_math, direction = "backward", trace = FALSE)
+
+# 4. Stepwise Selection Model
+stepwise_mod_math <- stepAIC(lin_mod_math, direction = "both", trace = FALSE)
+
+# Function Definitions
+calculate_rmse <- function(true_values, predicted_values) {
+  sqrt(mean((true_values - predicted_values)^2))
+}
+
+calculate_r2 <- function(true_values, predicted_values) {
+  ss_total <- sum((true_values - mean(true_values))^2)
+  ss_residual <- sum((true_values - predicted_values)^2)
+  1 - (ss_residual / ss_total)
+}
+
+calculate_adj_r2 <- function(r2, n, k) {
+  1 - (1 - r2) * ((n - 1) / (n - k - 1))
+}
+
+# List of models
+models_math <- list(
+  "Linear Model for Math" = lin_mod_math,
+  "Log-Transformed Model" = log_mod_math,
+  "Backward Selection Model" = backward_mod_math,
+  "Stepwise Selection Model" = stepwise_mod_math
+)
+
+# Initialize results data frame
+results_math <- data.frame()
+
+# Evaluate each model
+for (model_name in names(models_math)) {
+  model <- models_math[[model_name]]
+  
+  # Number of predictors
+  k <- length(coef(model)) - 1
+  
+  # Predictions
+  if (model_name == "Log-Transformed Model") {
+    train_predictions <- exp(predict(model, train_math))
+    test_predictions <- exp(predict(model, test_math))
+  } else {
+    train_predictions <- predict(model, train_math)
+    test_predictions <- predict(model, test_math)
+  }
+  
+  # RMSE
+  rmse_train <- calculate_rmse(train_math$G3, train_predictions)
+  rmse_test <- calculate_rmse(test_math$G3, test_predictions)
+  
+  # R²
+  r2_train <- calculate_r2(train_math$G3, train_predictions)
+  r2_test <- calculate_r2(test_math$G3, test_predictions)
+  
+  # Adjusted R²
+  adj_r2_train <- calculate_adj_r2(r2_train, nrow(train_math), k)
+  adj_r2_test <- calculate_adj_r2(r2_test, nrow(test_math), k)
+  
+  # Compile results
+  results_math <- bind_rows(results_math, data.frame(
+    Model = model_name,
+    RMSE_Train = round(rmse_train, 4),
+    R2_Train = round(r2_train, 4),
+    Adj_R2_Train = round(adj_r2_train, 4),
+    Adj_R2_Test = round(adj_r2_test, 4),
+    RMSE_Test = round(rmse_test, 4),
+    R2_Test = round(r2_test, 4)
+  ))
+}
+
+# Display model performance
+cat("\nMath Dataset Model Performance:\n")
+print(results_math)
+```
+
+# Choose Stepwise model
+The stepwise model has the lowest RMSE in train (0.7774) and test (0.8520), high R^2 value of (0.9393 in train and 0.9328 in test) and high adjusted R^2 values
+The stepwise itself also auto select the most significant predictors.
+```{r predictors for math}
+# ------------------------------
+# Part 4: Extracting and Visualizing Significant Coefficients (p < 0.1)
+# ------------------------------
+
+# Function to extract significant standardized coefficients
+extract_significant_coefs <- function(model, model_name, p_threshold = 0.1) {
+  # Calculate standardized coefficients
+  standardized_model <- lm.beta::lm.beta(model)
+  
+  # Tidy the model output
+  tidy_model <- broom::tidy(standardized_model)
+  
+  # Rename the estimate column to standardized_estimate
+  tidy_model <- tidy_model %>% 
+    rename(standardized_estimate = estimate)
+  
+  # Add the model name
+  tidy_model <- tidy_model %>% 
+    mutate(model = model_name)
+  
+  # Filter out the intercept and non-significant predictors
+  significant_coefs <- tidy_model %>% 
+    filter(term != "(Intercept)" & p.value < p_threshold)
+  
+  return(significant_coefs)
+}
+# Extract significant coefficients from the Stepwise Selection Model
+significant_coefficients_math <- extract_significant_coefs(stepwise_mod_math, "Stepwise Selection Model", p_threshold = 0.1)
+
+# Inspect the significant coefficients
+print("Significant Standardized Coefficients (p < 0.1) in Stepwise Selection Model:")
+print(significant_coefficients_math)
+
+# Check if there are any significant coefficients to plot
+if(nrow(significant_coefficients_math) > 0) {
+  
+  # Create the bar plot
+  ggplot(significant_coefficients_math, aes(x = reorder(term, standardized_estimate), 
+                                           y = standardized_estimate, 
+                                           fill = model)) +
+    geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+    geom_text(aes(label = round(standardized_estimate, 2)), 
+              position = position_dodge(width = 0.8), 
+              hjust = ifelse(significant_coefficients_math$standardized_estimate > 0, -0.2, 1.2), 
+              size = 3) +
+    coord_flip() +
+    labs(
+      title = "Significant Standardized Coefficients in Stepwise Selection Model",
+      x = "Predictors",
+      y = "Standardized Coefficient",
+      fill = "Model"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      plot.title = element_text(hjust = 0.5)
+    )
+  
+} else {
+  cat("No significant coefficients (p < 0.1) found in the Stepwise Selection Model.\n")
+}
+
+```
+
+```{r}
+# Calculate VIF for the Stepwise Selection Model
+vif_values_stepwise <- car::vif(stepwise_mod_math)
+
+# Display VIF results
+print("VIF Values for Stepwise Selection Model:")
+print(vif_values_stepwise)
+
+# Residuals vs Fitted Values
+plot(stepwise_mod_math, which = 1)
+
+# Q-Q Plot for Residuals
+plot(stepwise_mod_math, which = 2)
+
+plot(stepwise_mod_port, which = 5)
+
+```
+
+
+## Assumption checking
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+```
+
+1. Linearity Assumption
+   - Visual Inspection: The residuals vs. fitted values plots show if there’s a clear pattern, which might indicate non-linearity. Ideally, residuals should be randomly scattered around zero.
+   - Math vs. Portuguese Data: Both datasets’ scatter plots with linear regression lines indicate relationships between `G3` and each predictor variable, showing if linearity holds for each independent variable.
+   - Interpretation: In your residual plots, if the red line (smoother) remains close to zero without any distinct pattern, the linearity assumption is reasonably met.
+
+ 2. Homoscedasticity Assumption
+   - Visual Inspection: Homoscedasticity means that the variance of residuals is constant across fitted values. In your residual vs. fitted values plots, check for a funnel or fan shape which would indicate heteroscedasticity.
+   - Interpretation: If residuals spread evenly above and below the zero line, homoscedasticity is likely satisfied. However, if the residuals show increasing or decreasing variance as fitted values increase, heteroscedasticity may be present.
+
+ 3. Normality of Residuals
+   - Q-Q Plots: Q-Q plots for both models show if residuals follow a normal distribution. Residuals should fall along the 45-degree reference line for normality.
+   - Interpretation: Deviations from the line, particularly at the ends (tails), suggest that residuals may not be normally distributed. Small deviations are often acceptable, but larger deviations (such as heavy tails) may affect model assumptions.
+
+ 4. Independence of Residuals
+   - Visual Patterns: Independence of residuals implies that residuals are not correlated with each other. This is harder to check visually, but in time-series or spatial data, patterns or clusters in residuals could indicate dependency.
+   - Interpretation: Since there’s no evident time or spatial ordering here, independence is usually assumed unless known violations are present in data collection methods.
+
+ Conclusion:
+   - Model Fit Adequacy: If all assumptions are reasonably met, your model fit is considered reliable for inference. 
+
+
+
+### Linear
+
+```{r}
+port_data %>%
+  dplyr::select(G2, famrel, absences, Medu, goout, G1, failures, age, Dalc, traveltime, G3) %>%
+  pivot_longer(-G3) %>%
+  ggplot(aes(x = value, y = G3)) +
+  geom_jitter(width = 0.1, height = 1, alpha = 0.2) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features", y = "G3", title = "Math Data Relationship with Each Numerical Feature")
+```
+```{r}
+math_data %>%
+  dplyr::select(G2, famrel, absences, Medu, goout, G1, failures, age, Dalc, traveltime, G3) %>%
+  pivot_longer(-G3) %>%
+  ggplot(aes(x = value, y = G3)) +
+  geom_jitter(width = 0.1, height = 1, alpha = 0.2) +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +
+  facet_wrap(~name, scales = 'free') +
+  labs(x = "Independent Features", y = "G3", title = "Portuguese Data Relationship with Each Numerical Feature")
+
+```
+

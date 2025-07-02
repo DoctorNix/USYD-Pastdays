@@ -1,0 +1,259 @@
+---
+title: "Jacob_Model"
+author: '520009998'
+date: "2024-10-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r import data}
+library("dplyr")
+library("ggplot2")
+library("caret")
+library("glmnet")
+
+# Load the data
+d1 <- read.table("student-mat.csv", sep=";", header=TRUE)  # Math dataset
+d2 <- read.table("student-por.csv", sep=";", header=TRUE)  # Portuguese dataset
+
+# Clean the data by filtering out rows where G3 is 0
+d1 <- d1 %>% filter(G3 != 0)
+d2 <- d2 %>% filter(G3 != 0)
+
+```
+
+since the ppt.qmd contains the backward stepwise and hannah report also contain a bidirectional stepwise (and based on the tut result that math model fits better), a forward stepwise will be performed and compared with other model for a better understanding (also with possible QA: why choose bidirection(backward))
+```{r aic compare for math}
+library("caret")
+
+full_model <- lm(G3 ~ ., data = d1)
+
+forward_model <- step(lm(G3 ~ 1,data=d1), scope = formula(full_model), direction = "forward")
+# based on the code of ppt.qmd
+backward_model <- step(full_model, direction = "backward")
+# based on the code of 'Hannah Report.qmd'
+bidirection_model <- step(full_model, direction = "both")
+
+summary(forward_model)
+summary(backward_model)
+summary(bidirection_model)
+
+cat("AIC - Forward: ", AIC(forward_model), "\n")
+cat("AIC - Backward: ", AIC(backward_model), "\n")
+cat("AIC - Both: ", AIC(bidirection_model), "\n")
+```
+
+```{r cross validation with different folds for math}
+# Extract the formula from the forward model
+forward_formula <- formula(forward_model)
+backward_formula <- formula(backward_model)
+bidirection_formula <- formula(bidirection_model)
+
+# 10-fold cross-validation case
+ctrl_10 <- trainControl(method = "cv", number = 10)
+cv_forward_10 <- train(forward_formula, data = d1, method = "lm", trControl = ctrl_10)
+cv_backward_10 <- train(backward_formula, data = d1, method = "lm", trControl = ctrl_10)
+cv_bidirection_10 <- train(bidirection_formula, data = d1, method = "lm", trControl = ctrl_10)
+
+# 5-fold cross-validation case
+ctrl_5 <- trainControl(method = "cv", number = 5)
+cv_forward_5 <- train(forward_formula, data = d1, method = "lm", trControl = ctrl_5)
+cv_backward_5 <- train(backward_formula, data = d1, method = "lm", trControl = ctrl_5)
+cv_bidirection_5 <- train(bidirection_formula, data = d1, method = "lm", trControl = ctrl_5)
+
+# Display all the RMSE and R squared in one table
+results <- data.frame(
+  Model = c("Forward (10-fold)", "Backward (10-fold)", "Both (10-fold)",
+            "Forward (5-fold)", "Backward (5-fold)", "Both (5-fold)"),
+  RMSE = c(cv_forward_10$results$RMSE, cv_backward_10$results$RMSE, cv_bidirection_10$results$RMSE, cv_forward_5$results$RMSE, cv_backward_5$results$RMSE, cv_bidirection_5$results$RMSE),
+  RMSESD = c(cv_forward_10$results$RMSESD, cv_backward_10$results$RMSESD, cv_bidirection_10$results$RMSESD, cv_forward_5$results$RMSESD, cv_backward_5$results$RMSESD, cv_bidirection_5$results$RMSESD),
+  R_squared = c(cv_forward_10$results$Rsquared, cv_backward_10$results$Rsquared, cv_bidirection_10$results$Rsquared, cv_forward_5$results$Rsquared, cv_backward_5$results$Rsquared, cv_bidirection_5$results$Rsquared),
+  R_squared_SD = c(cv_forward_10$results$RsquaredSD, cv_backward_10$results$RsquaredSD, cv_bidirection_10$results$RsquaredSD, cv_forward_5$results$RsquaredSD, cv_backward_5$results$RsquaredSD, cv_bidirection_5$results$RsquaredSD)
+)
+
+# Display the results
+print(results)
+```
+
+## Key Insights:
+RMSE (10-fold):
+
+The Backward (10-fold) model has the lowest RMSE (0.8008), indicating the best predictive performance for predicting the final grade (G3).
+RMSESD (10-fold):
+
+The Forward (10-fold) model has the lowest RMSE standard deviation (0.0894), suggesting the most stable error performance across the folds.
+Although the Backward (10-fold) model performs the best in terms of RMSE, its higher RMSESD (0.1283) indicates more variability in the error across the folds.
+R-squared (5-fold):
+
+The Backward (5-fold) model has the highest R-squared value (0.9390), indicating that it explains the most variance in the target variable (G3).
+R-squared SD (5-fold):
+
+The Backward (5-fold) model also has the lowest R-squared standard deviation (0.0078), indicating consistent performance in explaining the variance across the different folds.
+
+## Summary for math data's model selection:
+Best Predictive Performance (RMSE): The Backward (10-fold) model offers the best predictive performance with the lowest RMSE.
+Most Stable Model (RMSESD & R-squared SD): The Backward (5-fold) model shows the most consistent performance, with the lowest RMSESD and R-squared SD, indicating stable error rates and explanatory power across different folds.
+
+
+```{r stepwise model for por (which already done before)}
+set.seed(123)
+
+# Null model (only intercept)
+null.model.d2 <- lm(G3 ~ 1, data = d2)
+
+# Full model (all predictors)
+full.model.d2 <- lm(G3 ~ ., data = d2)
+
+# Stepwise regression model
+stepwise.model.d2 <- step(null.model.d2, scope = list(lower = null.model.d2, upper = full.model.d2),
+                          direction = "both", trace = FALSE)
+
+# Summary of the stepwise model
+summary(stepwise.model.d2)
+```
+
+```{r backward elimination for por}
+# Full model for backward elimination
+M1.d2 <- lm(G3 ~ ., data = d2)
+
+# Backward elimination based on AIC
+M2.d2 <- step(M1.d2, direction = "backward")
+
+# Summary of the backward elimination model
+summary(M2.d2)
+
+```
+
+```{r model comparison for por}
+library("Metrics")
+set.seed(123)
+# Predict using the stepwise model on d2
+predictions_d2_stepwise <- predict(stepwise.model.d2, newdata = d2)
+
+# RMSE and R-squared for stepwise model on d2
+rmse_d2_stepwise <- rmse(d2$G3, predictions_d2_stepwise)
+rss_d2_stepwise <- sum((d2$G3 - predictions_d2_stepwise)^2)   # Residual Sum of Squares
+tss_d2_stepwise <- sum((d2$G3 - mean(d2$G3))^2)     # Total Sum of Squares
+r_squared_d2_stepwise <- 1 - (rss_d2_stepwise/tss_d2_stepwise)
+
+# Predict using the backward elimination model on d2
+predictions_d2_backward <- predict(M2.d2, newdata = d2)
+
+# RMSE and R-squared for backward elimination model on d2
+rmse_d2_backward <- rmse(d2$G3, predictions_d2_backward)
+rss_d2_backward <- sum((d2$G3 - predictions_d2_backward)^2)   # Residual Sum of Squares
+tss_d2_backward <- sum((d2$G3 - mean(d2$G3))^2)     # Total Sum of Squares
+r_squared_d2_backward <- 1 - (rss_d2_backward/tss_d2_backward)
+
+# Compare RMSE and R-squared for both models
+cat("Stepwise Model Performance on d2:\n")
+cat("RMSE:", rmse_d2_stepwise, "\n")
+cat("R-squared:", r_squared_d2_stepwise, "\n\n")
+
+cat("Backward Elimination Model Performance on d2:\n")
+cat("RMSE:", rmse_d2_backward, "\n")
+cat("R-squared:", r_squared_d2_backward, "\n")
+
+```
+
+# Log transformation (from Yuhan's idea)
+
+```{r log transformation linear regression}
+# Fitting the model with log(G3) for the Math dataset
+math_lm_log <- lm(log(G3) ~ ., data = d1)
+
+# Fitting the model with log(G3) for the Portuguese dataset
+port_lm_log <- lm(log(G3) ~ ., data = d2)
+
+# Summary of the models
+summary(math_lm_log)
+summary(port_lm_log)
+
+# Residual analysis for Math
+plot(math_lm_log)
+
+# Residual analysis for Portuguese
+plot(port_lm_log)
+
+# Predict using the log model and convert back to original scale
+math_pred_log <- exp(predict(math_lm_log, newdata = d1))
+port_pred_log <- exp(predict(port_lm_log, newdata = d2))
+
+# RMSE for the log-transformed model
+rmse_math_log <- rmse(d1$G3, math_pred_log)
+rmse_port_log <- rmse(d2$G3, port_pred_log)
+
+cat("Math RMSE (Log): ", rmse_math_log, "\n")
+cat("Portuguese RMSE (Log): ", rmse_port_log, "\n")
+```
+
+```{r normal linear regression}
+math_lm <- lm(G3 ~ ., data = d1)
+port_lm <- lm(G3 ~ ., data = d2)
+
+summary(math_lm)
+summary(port_lm)
+```
+# Model selection summary:
+
+## log(G3) linear regression from Yuhan (addressing heteroscedasticity)
+The most important predictors for math: G2 (strong positive), G1 (positive), failures(failure), age(positive), Dalc (negative) with 
+Residual standard error: 0.8158 on 315 degrees of freedom
+Multiple R-squared:  0.9435,	Adjusted R-squared:  0.9361 
+F-statistic: 128.2 on 41 and 315 DF,  p-value: < 2.2e-16
+
+The most important predictors for portuguese: G2 (strong positive), G1(positive), failures(failure), age(positive), traveltime (negative) with
+Residual standard error: 0.9154 on 592 degrees of freedom
+Multiple R-squared:  0.8918,	Adjusted R-squared:  0.8843 
+F-statistic: 119.1 on 41 and 592 DF,  p-value: < 2.2e-16
+
+## Stepwise
+The stepwise model for both datasets from comparion are backward 
+
+## normal linear regression
+Math:
+Residual standard error: 0.8158
+R-squared: 0.9435
+Adjusted R-squared: 0.9361
+F-statistic: 128.2 (p-value < 2.2e-16)
+Significant Predictors:
+G2 (positive, highly significant, p < 2e-16)
+G1 (positive, significant, p = 0.003985)
+Health (negative, significant, p = 0.017473)
+Absences (negative, significant, p = 0.049053)
+Paidyes (negative, significant, p = 0.036271)
+Famrel (positive, highly significant, p = 0.000793)
+
+Port:
+Residual standard error: 0.9154
+R-squared: 0.8918
+Adjusted R-squared: 0.8843
+F-statistic: 119.1 (p-value < 2.2e-16)
+Significant:
+G2 (positive, highly significant, p < 2e-16)
+G1 (positive, highly significant, p = 4.66e-10)
+Failures (negative, significant, p = 0.003825)
+Traveltime (positive, significant, p = 0.012394)
+Fjobother (negative, significant, p = 0.037025)
+Fjobservices (negative, significant, p = 0.016483)
+Age (positive, significant, p = 0.000441)
+
+
+# total summary (from gpt)
+
+Overall Comparison and Summary:
+Normal Linear Model: A baseline model that includes all predictors. This model likely had a reasonable fit but contained non-significant variables.
+
+Log-Transformed Model: Addressed non-linearity and skewness, potentially improving fit and interpretability for some variables but at the cost of complexity in interpretation (log coefficients).
+
+Stepwise Model: Optimized using AIC, this model systematically added or removed variables, retaining only the most significant predictors. It had the lowest AIC and likely the best predictive performance among the models.
+
+Backward Selection Model: A parsimonious model that removed non-significant variables based on p-values. It may not have achieved the same level of fit as the stepwise model but balanced simplicity and predictive power.
+
+Conclusion:
+The Stepwise Model appeared to be the best model overall based on AIC, including only the most significant predictors (like G1, G2, Famrel, Goout, Health, Absences, and Paid).
+The Log-Transformed Model might have been useful if the normality of residuals was an issue in the regular linear model.
+The Backward Selection Model offered a simpler alternative to stepwise selection, retaining only predictors with strong statistical significance.
